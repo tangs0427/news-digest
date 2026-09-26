@@ -1,0 +1,9 @@
+# 저장소에는 항상 LF 로 넣는다.
+# 워크플로의 bash 스크립트가 CRLF 로 저장되면 Linux 러너에서
+# "$'\r': command not found" 로 깨진다.
+* text=auto eol=lf
+
+# 바이너리로 취급
+*.png binary
+*.jpg binary
+*.ico binary

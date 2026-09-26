@@ -1,0 +1,40 @@
+# 환경변수 / 시크릿
+.env
+.env.*
+!.env.example
+
+# 인증 키
+*.pem
+*.key
+*.p12
+*_credentials.json
+*-credentials.json
+service-account*.json
+client_secret*.json
+token.json
+
+# 의존성
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# 빌드 산출물
+dist/
+build/
+.next/
+out/
+
+# 로컬 IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+
+# 로그
+*.log
+logs/
+
+# 로컬 실행 산출물
+output/
+.pytest_cache/

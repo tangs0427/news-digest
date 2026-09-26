@@ -1,0 +1,79 @@
+name: 뉴스 다이제스트
+
+# 아침에 네 번 시도합니다. Gemini 무료 티어가 혼잡하면 요약이 실패할 수 있어서,
+# 앞선 세 회차는 "요약이 온전할 때만" 발송하고, 마지막 회차는 무조건 발송합니다.
+# 이미 보낸 날은 드라이브에서 오늘 문서를 찾고 즉시 종료합니다.
+#
+# GitHub Actions 는 UTC 기준 (KST = UTC + 9)
+#   21:00 UTC -> 06:00 KST
+#   21:20 UTC -> 06:20 KST
+#   21:40 UTC -> 06:40 KST
+#   22:00 UTC -> 07:00 KST  (마지막, 무조건 발송)
+
+on:
+  schedule:
+    - cron: "0 21 * * *"
+    - cron: "20 21 * * *"
+    - cron: "40 21 * * *"
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "오늘 문서가 이미 있어도 새로 만들기"
+        type: boolean
+        default: false
+
+# 앞 회차가 아직 돌고 있으면 겹치지 않게
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 회차 판별
+        id: mode
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$FORCE" = "true" ]; then
+            # 사람이 강제 실행을 골랐으면 중복 확인 없이 새로 만든다.
+            echo "flags=" >> "$GITHUB_OUTPUT"
+            echo "label=강제 실행 (중복 확인 없이 새 문서)" >> "$GITHUB_OUTPUT"
+          elif [ "$SCHEDULE" = "0 22 * * *" ] || [ -z "$SCHEDULE" ]; then
+            # 마지막 회차(22:00 UTC)와 수동 실행은 요약이 없어도 발송한다.
+            echo "flags=--skip-if-sent" >> "$GITHUB_OUTPUT"
+            echo "label=마지막 회차 (요약 실패해도 발송)" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=--skip-if-sent --require-summary" >> "$GITHUB_OUTPUT"
+            echo "label=재시도 회차 (요약 온전할 때만 발송)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 다이제스트 생성 및 발송
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.6-flash' }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          DRIVE_FOLDER_NAME: ${{ vars.DRIVE_FOLDER_NAME || '뉴스 다이제스트' }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: |
+          echo "::notice::${{ steps.mode.outputs.label }}"
+          python -m src.main ${{ steps.mode.outputs.flags }}

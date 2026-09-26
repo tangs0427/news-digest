@@ -1,0 +1,183 @@
+# 뉴스 다이제스트 수집 소스 정의
+#
+# type: google_news  -> query 를 구글 뉴스 RSS 검색으로 변환 (한국어/한국 지역)
+#                       query 안에서 OR 과 -제외어 를 쓸 수 있습니다.
+# type: rss          -> url 을 그대로 파싱
+#
+# 피드가 깨지거나 관심사가 바뀌면 이 파일만 고치면 됩니다. 코드는 그대로 둡니다.
+# 동작 확인: python -m src.main --check-feeds
+
+timezone: Asia/Seoul
+
+# 기사 수집 시간 범위(시간). 주말/공휴일 공백을 감안해 넉넉하게.
+lookback_hours: 30
+
+# 카테고리당 문서에 실을 최대 기사 수
+max_per_category: 12
+
+# 피드 하나에서 읽어들일 최대 항목 수 (한 곳 쏠림 방지)
+max_per_feed: 25
+
+# 구글 뉴스가 매체명 대신 도메인을 주는 경우가 있어 읽을 수 있는 이름으로 바꾼다.
+# 여기 없는 출처는 원문 그대로 표시된다.
+source_aliases:
+  "v.daum.net": 다음뉴스
+  "n.news.naver.com": 네이버뉴스
+  "hani.co.kr": 한겨레
+  "yonhapnewstv.co.kr": 연합뉴스TV
+  "lawtimes.co.kr": 법률신문
+  "economist.co.kr": 이코노미스트
+  "biz.chosun.com": 조선비즈
+  "chosunbiz": 조선비즈
+  "mk.co.kr": 매일경제
+  "sedaily.com": 서울경제
+  "news.mt.co.kr": 머니투데이
+  "edaily.co.kr": 이데일리
+  "fnnews.com": 파이낸셜뉴스
+  "etnews.com": 전자신문
+  "zdnet.co.kr": ZDNet Korea
+  "investing.com 한국어": 인베스팅닷컴
+  "naver blog": 네이버 블로그
+  "naver post": 네이버 포스트
+
+# 수집 후 버릴 기사 규칙
+filters:
+  min_title_length: 8
+
+  # 매체명에 이 문자열이 들어가면 제외 (대소문자 무시, 별칭 적용 후 비교)
+  exclude_sources:
+    - 네이버 블로그
+    - 네이버 포스트
+    - 네이버 카페
+    - 티스토리
+    - 브런치
+    - 다음 카페
+
+  # 제목이 이 정규식에 걸리면 제외
+  exclude_title_patterns:
+    # 해외 개별종목 시황/리서치 필러
+    - "특징주"
+    - "목표주가"
+    - "투자의견"
+    - "(중립|매수|비중확대|비중축소)['’\"]?\\s*(유지|상향|하향)"
+    # 기사 형식 자체가 읽을거리가 아닌 것
+    - "^\\[(부고|인사|동정|포토|사진|그래픽|영상|표|알림|공고)\\]"
+    - "^\\[게시판\\]"
+    - "오늘의 운세"
+    - "주요 일정"
+    # 부고·경조사 (대괄호 없이 나가는 경우가 많다)
+    - "(부친상|모친상|빙부상|빙모상|장인상|장모상|조부상|조모상)"
+    - "별세$"
+    # 블로그/카페 유입 (출처가 도메인으로만 잡히는 경우 대비)
+    - "[:：]\\s*(네이버 블로그|네이버 포스트|티스토리|브런치)\\s*$"
+    # 추모·기념 '행사' 스케치. 경제 다이제스트에 들어올 자리가 아니다.
+    # 사고나 재해 '보도' 자체는 산업 뉴스일 수 있으므로 거르지 않는다.
+    - "(합동 ?차례|거리차례|추모식|위령제|분향소|추모 ?행사)"
+    # 명절·계절 풍경 스케치
+    - "(귀성|귀경)길 (풍경|정체)"
+    # 기사가 아니라 헤드라인 모음글
+    - "이 ?시각 (헤드라인|주요뉴스|뉴스)"
+    - "^\\[.{0,10}(브리핑|모아보기|뉴스룸)\\]"
+    # 언론사 자사 행사 홍보
+    - "TechCrunch Disrupt"
+    - "^Last call"
+    - "Disrupt \\d{4}"
+
+categories:
+  - key: market
+    label: "시장 · 거시"
+    description: "증시, 금리, 환율, 경기 지표"
+    feeds:
+      # 종합 카테고리 피드라 주제를 벗어난 기사도 섞여 온다. 발행량이 많아
+      # 상한이 없으면 최신순 정렬을 독점하고 정밀 검색 결과를 밀어낸다.
+      - name: "연합뉴스 경제"
+        type: rss
+        url: "https://www.yna.co.kr/rss/economy.xml"
+        max_items: 10
+      - name: "구글뉴스 · 증시"
+        type: google_news
+        query: "코스피 OR 코스닥 OR 뉴욕증시 -특징주"
+      - name: "구글뉴스 · 금리환율"
+        type: google_news
+        query: "기준금리 OR 원달러 환율 OR 연준"
+      - name: "구글뉴스 · 경기지표"
+        type: google_news
+        query: "소비자물가 OR 경제성장률 OR 무역수지"
+
+  - key: industry
+    label: "산업 · 기업"
+    description: "실적, 수주, M&A, 주요 대기업 동향"
+    feeds:
+      - name: "연합뉴스 산업"
+        type: rss
+        url: "https://www.yna.co.kr/rss/industry.xml"
+        max_items: 10
+      - name: "구글뉴스 · 실적"
+        type: google_news
+        query: "영업이익 OR 실적발표 OR 어닝서프라이즈 -특징주 -투자의견"
+      - name: "구글뉴스 · M&A"
+        type: google_news
+        query: "인수합병 OR 경영권 매각 OR 지분 인수"
+      - name: "구글뉴스 · 반도체"
+        type: google_news
+        query: "삼성전자 OR SK하이닉스 OR 반도체 수출"
+
+  - key: tech
+    label: "AI · 테크"
+    description: "AI 모델, 빅테크, 신기술"
+    feeds:
+      - name: "구글뉴스 · AI"
+        type: google_news
+        query: "인공지능 OR 생성형 AI OR AI 모델"
+      - name: "구글뉴스 · 빅테크"
+        type: google_news
+        query: "엔비디아 OR 오픈AI OR 구글 OR 애플 OR 마이크로소프트"
+      - name: "구글뉴스 · AI산업"
+        type: google_news
+        query: "AI 데이터센터 OR AI 반도체 OR AI 투자"
+      # 아래 직접 RSS 는 원문 리드 문단을 같이 준다(= AI 요약의 근거).
+      # 발행량이 많아 최신순 정렬을 독점하지 않도록 상한을 둔다.
+      - name: "전자신문"
+        type: rss
+        url: "https://rss.etnews.com/Section901.xml"
+        max_items: 10
+      - name: "TechCrunch"
+        type: rss
+        url: "https://techcrunch.com/feed/"
+        max_items: 8
+
+  - key: startup
+    label: "스타트업 · 투자"
+    description: "벤처투자, 펀딩, IPO"
+    feeds:
+      - name: "구글뉴스 · 벤처투자"
+        type: google_news
+        query: "시리즈A OR 시리즈B OR 투자 유치 스타트업"
+      - name: "구글뉴스 · IPO"
+        type: google_news
+        query: "상장 예비심사 OR 공모주 OR IPO"
+      - name: "구글뉴스 · 사모펀드"
+        type: google_news
+        query: "사모펀드 OR PEF OR 인수금융"
+      # 스타트업 전문지 — 원문 리드 확보용
+      - name: "벤처스퀘어"
+        type: rss
+        url: "https://www.venturesquare.net/feed"
+        max_items: 10
+
+  - key: career
+    label: "채용 · 커리어"
+    description: "컨설팅펌, 금융권·대기업 채용, 취업 시장"
+    feeds:
+      - name: "구글뉴스 · 컨설팅"
+        type: google_news
+        query: "맥킨지 OR 베인앤컴퍼니 OR 보스턴컨설팅 OR 컨설팅업계 OR 회계법인"
+      - name: "구글뉴스 · 대기업채용"
+        type: google_news
+        query: "신입 공채 OR 대기업 채용 OR 하반기 채용 OR 채용설명회"
+      - name: "구글뉴스 · 금융권채용"
+        type: google_news
+        query: "은행 채용 OR 증권사 채용 OR 금융권 취업"
+      - name: "구글뉴스 · 고용시장"
+        type: google_news
+        query: "고용동향 OR 청년 취업 OR 채용시장 OR 취업난"
