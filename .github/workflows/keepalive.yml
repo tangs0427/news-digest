@@ -1,0 +1,33 @@
+name: keepalive
+
+# GitHub 는 저장소에 60일 동안 커밋이 없으면 schedule 워크플로를 자동으로 꺼 버린다.
+# 이 저장소는 코드가 바뀔 일이 거의 없어서, 마지막 커밋이 20일 넘게 오래됐을 때만
+# 빈 커밋을 하나 남겨 그 시계를 되돌린다. 사람이 커밋하는 동안에는 아무것도 하지 않는다.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # 매주 월요일 03:17 UTC (12:17 KST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 마지막 커밋이 20일 넘었으면 빈 커밋
+        run: |
+          last=$(git log -1 --format=%ct)
+          age=$(( ( $(date +%s) - last ) / 86400 ))
+          echo "마지막 커밋: ${age}일 전"
+          if [ "$age" -lt 20 ]; then
+            echo "아직 괜찮음. 건너뜀."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive — schedule 워크플로 60일 자동 비활성 방지"
+          git push
